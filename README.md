@@ -1,8 +1,10 @@
-# pmcexplore_package
+# pmcexplore
 
 pmcexplore is an R package to handle text data from PubMed Central.
 
-I completed this project during my time as a Coding It Forward Civic Digital Fellow at the National Institutes of Health.
+I completed this project during my time as a Coding It Forward Civic Digital Fellow at the National Institutes of Health. I worked on a cross-agency team but based within NIDDK.
+
+This repo contains all code for the R package, as well as all code for the Shiny app associated with the package.
 
 To use the R package:
 
