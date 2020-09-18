@@ -1,0 +1,31 @@
+Package: pmcexplore
+Title: Handle Text Data from PubMed Central
+Version: 0.0.0.9000
+Authors@R: 
+    person(given = "Natalie",
+           family = "Gable",
+           role = c("aut", "cre"),
+           email = "natalie.gable@nih.gov")
+Description: Handle Text Data from PubMed Central. This package provides functions to search PMC, load full-text XMLs from PMC, and handle text data within R. All data loading uses the Entrez Programming Utilities (E-utilities) API from the NCBI to query and fetch text data from the PMC database. It can fetch sections of a full-text document, such as metadata, data availability statement, and abstract. It also implements text embeddings and preprocessing steps so that text data can be used in models. 
+Depends: R (>= 4.0.0)
+Imports:
+	dplyr,
+	purrr,
+	stringr,
+	tibble,
+	tidypmc,
+	tidytext,
+	tidyr,
+	text2vec,
+	xml2,
+	magrittr
+License: `use_mit_license()`, `use_gpl3_license()` or friends to
+    pick a license
+Encoding: UTF-8
+LazyData: true
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.1.1
+Suggests: 
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr

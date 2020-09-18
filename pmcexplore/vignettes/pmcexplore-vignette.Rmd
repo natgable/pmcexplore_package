@@ -1,0 +1,200 @@
+---
+title: "pmcexplore"
+author: "Natalie Gable"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{pmcexplore-vignette}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(tidyverse)
+library(pmcexplore)
+```
+
+# Introduction and Overview to pmcexplore
+
+`pmcexplore` allows users to search PubMed Central (PMC), pull text data, and wrangle data for modeling tasks. 
+
+To use functions in `pmcexplore`, navigate to the directory where the package folder is using `setwd("path to directory here")`. Then run `install("pmcexplore")` and `library(pmcexplore)`. You can access this document by `vignette(pmcexplore)`.
+
+`pmcexplore` provides functions to handle text data from sourcing to modeling and relies on the NCBI E-utilities API to pull full-text XML documents from the database. 
+
+A full list of functions in the `pmcexplore` package is included below. Information about any of these functions and how to use them can be accessed by running `?pmcexplore::function_name`.
+
+**Available Functions**
+
+* `clean_DAS`
+* `convert_id`
+* `generate_features`
+* `get_abstract`
+* `get_DAS`
+* `get_funding`
+* `get_mesh`
+* `get_references`
+* `label_DAS`
+* `preprocess_text`
+* `search_by_date`
+* `search_by_mesh`
+* `search_keyword`
+* `tidy_metadata`
+* `xml_by_id`
+
+The general workflow using `pmcexplore` is described below.
+
+First, we'll start by getting the ID numbers of the documents we'd like to look at. The package includes three functions to search PMC.
+
+|Function        |Description                                                                 |
+|:---------------|:---------------------------------------------------------------------------|
+|`search_by_date`|Get ID numbers of papers published in PMC between input start and end dates.|
+|`search_keyword`|Get ID numbers of papers associated with input keyword(s).                  |
+|`search_by_mesh`|Get ID numbers of papers that are tagged with input MeSH terms.             |
+
+In practice, this will look something like:
+
+```{r search database}
+my_ids <- search_by_date(start = "2019/01/01", end = "2019/01/02")
+
+head(my_ids)
+```
+
+This will get me all the IDs of papers published in PMC between January 1 and January 2 2019.
+
+Next, we can retrieve the full-text XML associated with each ID number. This involves using the `purrr` package (included in the `tidyverse`), which provides functions to apply processes iteratively, over multiple inputs. The result of this process will give us a tibble (dataframe) with two columns, PMCID and text. The PMCID column gives the PMCIDs (as strings) and the text column is actually an embedded tibble containing the text information, as parsed by `tidypmc::pmc_text`.
+
+```{r pull text}
+my_text <-
+  my_ids %>% 
+  pull(PMCID) %>% # this takes out just the character vector
+  map(xml_by_id) %>% # the map function applies pmcexplore::xml_by_id to retrieve xmls for each ID number
+  tibble() %>% # wrangle into a tibble datatype
+  rename(xml = ".") %>% 
+  transmute(
+    PMCID = my_ids %>% pull(PMCID),
+    text = map(xml, tidypmc::pmc_text) # uses the tidypmc function to parse text
+  )
+
+head(my_text)
+```
+
+If we look at each of these embedded tibbles, we can see they contain the full text. Let's just take a look at the first one. This will give us the text we're pulling out of the first XML. 
+
+```{r text data}
+my_text %>% 
+  dplyr::slice(1) %>% 
+  tidyr::unnest(text) %>% 
+  select(text) %>% 
+  head()
+```
+
+Now we can use the `generate_features` function to get the numerical embeddings of the documents. Here, for example, I will specify that we want to perform stemming on the text data and embed the data using 50 topic model LDA features.
+
+```{r features}
+my_features <-
+  generate_features(my_text, lem_stem = "stem", mode = "tm 50")
+
+dim(my_features)
+```
+
+There's also the option to preprocess the input features.
+
+```{r}
+my_features_processed <-
+  preprocess_text(my_features, mode = "none", type = "tm")
+```
+
+We can now use these features as inputs to our model. However, since the primary task is classification (classifying text documents by their data sharing practices), we need labels. These labels will help us train and test our supervised model. The labels come from pulling data sharing information using text mining. Let's walk through the pipeline to do that. 
+
+We already have the document IDs that we'd like to look at. Now instead of pulling the full text information, we can just pull the data sharing information using `get_DAS` and purrr. We can get a dataframe with embedded data sharing information.
+
+```{r}
+my_das <-
+  my_ids %>% 
+  mutate(
+    das = purrr::map(PMCID, get_DAS)
+  )
+
+head(my_das)
+```
+
+We also have functions in our toolbox to handle this DAS data. First we have the `clean_DAS` function to parse the data we pulled using `get_DAS`.
+
+```{r}
+my_das_cleaned <-
+  clean_DAS(my_das)
+
+head(my_das_cleaned)
+```
+
+Now we can label our data sharing methods to use in our classification task as labels. The current labeling scheme is: 
+0) No data sharing information.
+1) Supplementary materials for download.
+2) Data citation or link to repository.
+3) Data upon request.
+4) Restricted access.
+5) Supplementary materials, but no downloadable file.
+6) Other.
+
+```{r}
+my_labels <-
+  label_DAS(my_das_cleaned)
+
+head(my_labels)
+```
+
+Now we can merge our inputs and outputs, to get one single matrix. We also need to make sure our labels are type factor (can do this by `factor(label)` as shown below).
+
+```{r}
+my_data <-
+  bind_cols(my_labels, as_tibble(my_features_processed)) %>% 
+  select(-PMCID) %>% 
+  mutate(
+    label = factor(label)
+  )
+
+head(my_data)
+```
+
+Since we are using this dataset in a model, we need to split our dataset into training and testing datasets. Shown below is an 80/20 train/test split (set `p = 0.8`).
+
+```{r}
+train_index <- 
+  caret::createDataPartition(
+    my_data$label, 
+    p = 0.8, 
+    list = FALSE, 
+    times = 1
+  )
+
+train_data <- my_data[train_index,]
+test_data <- my_data[-train_index,]
+```
+
+Many times, our dataset has imbalanced labels. We can handle this using undersampling, oversampling, or synthetic data generation. We want to do sampling after splitting into train and test so the resampling doesn't bleed into the splitting. 
+
+```{r}
+train_data %>% 
+  count(label)
+```
+
+The best way I've found to do this is to use ROSE (Random Over-Sampling Examples). Following our imbalanced class of 7 different labels (0 through 6) with heavily represented groups 0 and 1, there's a function called `balanced_labels`. For a dataset with a different label breakdown, check out the `ROSE` documentation on CRAN.
+
+```{r}
+balanced_train_data <-
+  train_data %>% 
+  balance_labels(p = 0.87)
+
+balanced_train_data %>% 
+  count(label)
+```
+
+Now our dataset is more balanced and we are ready to use this dataset in a model. Check out the model zoo to see how we can use a dataset to train and test a model.To use the datasets in the model zoo, save the datasets by `write_rds(balanced_train_data, "./path_to_file.rds")`.
