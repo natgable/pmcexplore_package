@@ -15,3 +15,13 @@ To use the R package:
 5) Make sure you have the right R version (>= 4.0.0) and package dependencies.
 6) Now run `library(pmcexplore)`.
 6) To learn about the package and how to use it, run `browseVignettes("pmcexplore")`. To see all the functions available, you can run `ls("package:pmcexplore")`. To learn about each of the functions or datasets, run `?` followed by the function or dataset name. 
+
+# About the project
+
+## Context
+
+Good data sharing and stewardship practices are important in the future of biomedical and scientific research. The FAIR (findable, accessible, interoperable, and reusable) data guiding approach allows for better data sharing and reuse, study reproducibility, and collaboration between researchers. The goal of this project was to do an overview analysis of the data sharing landscape of NIH-funded publications hosted on PubMed Central (PMC). Specifically: are researchers sharing data? If so, how?
+
+Data availability statements (DASs) are sections within papers for researchers to explain what data they used, information on how to access those data, and links to repositories or downloads if applicable. PMC stores all papers in a specific XML (Extensible Markup Language) format, and each section of an XML can have a specific tag. Currently, PMC allows for researchers to create an XML tag to specify a DAS, and researchers are encouraged to do so. However, there are no strict rules and regulations around tagging DASs or sharing data in a paper.
+
+The initial goals for this project centered around creating a suite of functions, bundled into an R package called pmcexplore. These functions were then used to look at the data sharing landscape of PubMed Central. 
